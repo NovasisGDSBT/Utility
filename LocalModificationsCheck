@@ -1,5 +1,5 @@
 #!/bin/sh
-PREPEND_PATH="/Devel/NOVAsom_SDK"
+PREPEND_PATH="/Devel/NOVAsom6_SDK"
 DIRS="Bootloader/u-boot-2014.10-NOVAsom6 Kernel/linux-3.10.17_1.0.2_ga-NOVAsom6 GdsPages/GdsPages FileSystem/AfterCompileCommands Utils"
 REPOCOUNT=`echo "$DIRS" | awk '{print NF}'`
 GREEN='\033[0;32m'
@@ -16,7 +16,7 @@ COUNTMODS=0
 COUNTSENT=0
 INCREMENT=1
 for i in ${DIRS}; do
-        cd /Devel/NOVAsom_SDK/$i
+        cd $PREPEND_PATH/$i
         BASE=`basename $i`
 	RESULT=`git status | grep modified`
 	if [ "$?" = "0" ]; then
