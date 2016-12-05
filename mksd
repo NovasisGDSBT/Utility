@@ -1,0 +1,4 @@
+#!/bin/sh 
+cd /Devel/NOVAsom6_SDK/Utils
+./k10_mksd > /Devel/NOVAsom6_SDK/Logs/k10_mksd.log
+

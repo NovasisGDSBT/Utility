@@ -1,0 +1,16 @@
+#!/bin/sh
+DEPLOYDIR="/Devel/NOVAsom6_SDK/Deploy"
+UPDATER_DIR="Updater"
+rm -rf ${UPDATER_DIR}
+mkdir ${UPDATER_DIR}
+cd ${UPDATER_DIR}
+cp ${DEPLOYDIR}/../Kernel/linux-3.10.17_1.0.2_ga-NOVAsom6/arch/arm/boot/dts/imx6q-GDS-novasom.dtb .
+cp ${DEPLOYDIR}/../FileSystem/ChromeFs/output/images/uInitrd NOVAsom6Initrd
+cp ${DEPLOYDIR}/../Kernel/linux-3.10.17_1.0.2_ga-NOVAsom6/arch/arm/boot/uImage NOVAsom6Kernel
+cp ${DEPLOYDIR}/../Bootloader/splash.bmp.gz .
+cp ${DEPLOYDIR}/../Bootloader/NOVAsom6_Q_GDS.params .
+cp ${DEPLOYDIR}/../Bootloader/u-boot-2014.10-NOVAsom6/u-boot.imx u-boot_NOVAsom6.imx
+cd ..
+rm -f ${UPDATER_DIR}.tar
+tar cf  ${UPDATER_DIR}.tar  ${UPDATER_DIR}
+

@@ -1,0 +1,169 @@
+#!/bin/sh
+DISK="/dev/sdb"
+UBOOT_BIN="../Bootloader/u-boot-2014.10-NOVAsom6/u-boot.imx"
+KERNEL_BIN="../Deploy/NOVAsom6Kernel"
+FS_UIMAGE="../Deploy/NOVAsom6Initrd_GDS_FLASHER"
+WHEREIS=`ls -la ${UBOOT_BIN}`
+HERE=`pwd`
+
+
+case $1 in 
+	Q_PRESERIES)
+		KERNEL_DTB="../Deploy/imx6q-novasom.dtb"
+		PROCESSOR="i.MX6Q"
+		PARAMS="../Bootloader/NOVAsom6_Q.params"
+		SPLASH="../Bootloader/Splashes/splash_quad.bmp.gz"
+		THIS_PROCESSOR="QUAD"
+		;;
+	Q_PRODUCTION)
+		KERNEL_DTB="../Deploy/imx6q-GDS-novasom.dtb"
+		PROCESSOR="i.MX6Q"
+		PARAMS="../Deploy/NOVAsom6_Q_GDS.params"
+		SPLASH="../Bootloader/Splashes/splash_quad.bmp.gz"
+		THIS_PROCESSOR="QUAD"
+		;;
+	*)
+		echo "Usage : ${0} [IMAGE TYPE]"
+		echo "IMAGE TYPE can be :"
+		echo "   Q_PRESERIES  = Standard Quad for GDS Application"
+		echo "   Q_PRODUCTION = GDS customized QUAD without WiFi"
+		exit
+		;;
+esac
+
+. ../Bootloader/u-boot-2014.10-NOVAsom6/processor
+
+if [ "${BOOT_PROCESSOR}" != "${THIS_PROCESSOR}" ]; then
+	echo "Last u-boot compilation was for ${BOOT_PROCESSOR}, different from ${THIS_PROCESSOR}"
+	echo -n "Compilation needed. Do you want to proceed ? [Y/n] "
+	read CONFIRM
+	if [ "${CONFIRM}" == "Y" ]; then
+		cd ../Bootloader/u-boot-2014.10-NOVAsom6
+		if [ "${THIS_PROCESSOR}" == "QUAD" ]; then
+			./umake_quad
+		else
+			echo "Invalid processor, giving up"
+			exit 0
+		fi
+	fi
+	cd ${HERE}
+fi
+
+DTB_SELECTED=`basename ${KERNEL_DTB}`
+PARAM_SELECTED=`basename ${PARAMS}`
+echo ""
+echo "Processor model is ${PROCESSOR}"
+echo "Boot loader is for ${THIS_PROCESSOR}"
+echo "DTB is             ${DTB_SELECTED}"
+echo "Param file is      ${PARAM_SELECTED}"
+echo -n "Is this correct ? [Y/n] "
+read CONFIRM
+if [ "${CONFIRM}" == "Y" ]; then
+	echo -n "Writing u-boot ... "
+else
+	echo "NOT writing uSD. Giving up"
+	exit 0
+fi
+	
+sudo dd if=/dev/zero of=${DISK} bs=1M count=1; sync
+sync
+sudo dd if=${UBOOT_BIN} of=${DISK} bs=512 seek=2; sync
+sync
+sudo fdisk ${DISK} << __EOF__
+n
+p
+1
+
++32M
+t
+b
+n
+p
+3
+
++16M
+t
+3
+83
+n
+p
+2
+
++256M
+t
+2
+83
+w
+__EOF__
+
+echo "Flashed ${WHEREIS}"
+sudo mkfs.vfat -F 16 ${DISK}1 -n N6BootK10
+sudo mkfs.ext3 -t ext3 -L N6RootFSK10 ${DISK}2
+sudo mkfs.ext3 -t ext3 -L N6Ext3DataK10 ${DISK}3
+sudo [ -d tmp ] && sudo rm -rf tmp
+mkdir tmp
+sudo mount -t vfat ${DISK}1 tmp
+echo -n "Writing kernel ... "
+sudo cp ${KERNEL_BIN} tmp/.
+sync
+echo "Done"
+echo -n "Writing dtb ... "
+sudo cp ${KERNEL_DTB} tmp/imx6q-novasom.dtb
+sync
+echo "Done"
+echo -n "Writing file system ... "
+sudo cp ${FS_UIMAGE} tmp/NOVAsom6Initrd
+sync
+echo "Done"
+echo -n "Writing splash ... "
+sudo cp ${SPLASH} tmp/splash.bmp.gz
+sync
+echo "Done"
+echo -n "Writing boot parameters ... "
+sudo cp ${PARAMS} tmp/NOVAsom6.params
+sync
+echo "Done"
+echo -n "Writing u-boot copy ... "
+sudo cp ${UBOOT_BIN} /mnt/u-boot_NOVAsom6.imx
+sync
+echo "Done"
+sudo umount tmp
+sync
+
+echo -n "Writing file system parameters ... "
+sudo mount -t ext2 ${DISK}3 tmp
+sudo cp -r /Devel/NOVAsom6_SDK/FileSystem-11_3.10/NovaAddOns/Init/etc/default_init/sysconfig tmp/.
+sudo cp -r /Devel/NOVAsom6_SDK/FileSystem-11_3.10/NovaAddOns/Wireless/etc/default_init/sysconfig tmp/.
+sudo chmod 755 tmp/sysconfig/*
+sudo umount tmp
+echo "Done"
+
+echo -n "Writing GDS flasher files ... "
+sudo mount -t ext2 ${DISK}2 tmp
+echo -n "imx6q-GDS-novasom.dtb ... "
+sudo cp /Devel/NOVAsom6_SDK/Deploy/imx6q-GDS-novasom.dtb tmp/imx6q-novasom.dtb
+echo -n "NOVAsom6Kernel ... "
+sudo cp /Devel/NOVAsom6_SDK/Deploy/NOVAsom6Kernel tmp/NOVAsom6Kernel
+echo -n "NOVAsom6InitrdChromeFs ... "
+sudo cp /Devel/NOVAsom6_SDK/Deploy/NOVAsom6InitrdChromeFs tmp/NOVAsom6Initrd
+echo -n "NOVAsom6_Q_GDS.params ... "
+sudo cp /Devel/NOVAsom6_SDK/Deploy/NOVAsom6_Q_GDS.params tmp/NOVAsom6.params
+echo -n "u-boot_NOVAsom6.imx ... "
+sudo cp /Devel/NOVAsom6_SDK/Deploy/u-boot_NOVAsom6.imx tmp/u-boot_NOVAsom6.imx
+echo -n "splash.bmp.gz ... "
+sudo cp /Devel/NOVAsom6_SDK/Deploy/splash.bmp.gz tmp/splash.bmp.gz
+sudo umount tmp
+echo "Done"
+
+echo "Flash succesfully initialized"
+
+/Devel/NOVAsom6_SDK/Utils/install_GDS
+
+if [ "$1" == "Q_PRESERIES" ]; then
+	sudo mount -t ext3 ${DISK}3 /mnt
+	sudo cp flasher_preprod /mnt/application_storage/.
+	sync
+	sudo umount /mnt
+fi
+
+exit

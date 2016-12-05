@@ -1,0 +1,4 @@
+#!/bin/sh 
+cd /Devel/NOVAsom6_SDK/Bootloader/u-boot-2014.10-NOVAsom6
+./umake_quad > /Devel/NOVAsom6_SDK/Logs/mkboot.log
+

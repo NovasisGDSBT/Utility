@@ -1,0 +1,4 @@
+#!/bin/sh 
+cd /Devel/NOVAsom6_SDK/FileSystem/ChromeFs
+make > /Devel/NOVAsom6_SDK/Logs/mkfs.log
+

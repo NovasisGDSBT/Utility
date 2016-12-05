@@ -1,0 +1,179 @@
+#!/bin/sh
+DISK="/dev/sdb"
+UBOOT_BIN="../Bootloader/u-boot-2014.10-NOVAsom6/u-boot.imx"
+KERNEL_BIN="../Deploy/NOVAsom6Kernel"
+FS_UIMAGE="../Deploy/NOVAsom6Initrd"
+FS_ROOTFS_FILENAME=`readlink ${FS_UIMAGE}`
+FS_ROOTFS_DIR=`dirname ${FS_ROOTFS_FILENAME}`
+WHEREIS=`ls -la ${UBOOT_BIN}`
+HERE=`pwd`
+PARAMS="NOVAsom6.params"
+
+usage()
+{
+	echo "Usage : ${0} [PROCESSOR] [RESOLUTION]"
+	echo "PROCESSOR can be :"
+	echo "   Q  = Standard Quad"
+	echo "   Q_NOWIFI = Standard QUAD without WiFi"
+	echo "   DL = Standard Dual Light"
+	echo "   7B = Dual Light B version, reduced hardware ( see docs at www.novasom.info )"
+	echo "RESOLUTION can be :"
+	echo "   hdmiFHD60     = HDMI 1920x1080 60Hz"
+	echo "   hdmiFHD50     = HDMI 1920x1080 50Hz"
+	echo "   hdmiFHD30     = HDMI 1920x1080 30Hz"
+	echo "   hdmiHD60      = HDMI 1280x720 60Hz"
+	echo "   hdmiHD50      = HDMI 1280x720 50Hz"
+	echo "   hdmiHD30      = HDMI 1280x720 30Hz"
+	echo "   lvds800x480   = LVDS 800x480 60Hz"
+	echo "   lvds1024x768  = LVDS 1024x768 60Hz"
+	echo "   lvds1280x800  = LVDS 1280x800 60Hz"
+	echo "   lvds1920x1080 = LVDS 1920x1080 60Hz"
+	exit
+}
+
+if [ "${1}" = "" ]; then
+	usage
+fi
+if [ "${2}" = "" ]; then
+	usage
+fi
+
+case $1 in 
+	DL)
+		KERNEL_DTB="../Deploy/imx6dl-novasom.dtb"
+		PROCESSOR="i.MX6S/i.MX6DL"
+		cat ../Bootloader/NOVAsom6_DL.params | sed 's/run setvideo_hdmiFHD60/run setvideo_$2/g' > ${PARAMS}
+		SPLASH="../Bootloader/Splashes/splash_dl.bmp.gz"
+		THIS_PROCESSOR="DL"
+		;;
+	Q)
+		KERNEL_DTB="../Deploy/imx6q-novasom.dtb"
+		PROCESSOR="i.MX6Q"
+		cat ../Bootloader/NOVAsom6_Q.params | sed 's/run setvideo_hdmiFHD60/run setvideo_'$2'/g' > ${PARAMS}
+		SPLASH="../Bootloader/Splashes/splash_quad.bmp.gz"
+		THIS_PROCESSOR="QUAD"
+		;;
+	Q_NOWIFI)
+		KERNEL_DTB="../Deploy/imx6q-NOWIFI-novasom.dtb"
+		PROCESSOR="i.MX6Q"
+		cat ../Bootloader/NOVAsom6_QNOWIFI.params | sed 's/run setvideo_hdmiFHD60/run setvideo_$2/g' > ${PARAMS}
+		SPLASH="../Bootloader/Splashes/splash_quad.bmp.gz"
+		THIS_PROCESSOR="QUAD"
+		;;
+	7B)
+		KERNEL_DTB="../Deploy/imx6dl-7B-novasom.dtb"
+		PROCESSOR="i.MX6S/i.MX6DL"
+		cat ../Bootloader/NOVAsom6_7B.params | sed 's/run setvideo_hdmiFHD60/run setvideo_$2/g' > ${PARAMS}
+		SPLASH="../Bootloader/Splashes/splash_dl_7B.bmp.gz"
+		THIS_PROCESSOR="DL"
+		;;
+	*)
+		usage
+		;;
+esac
+
+. ../Bootloader/u-boot-2014.10-NOVAsom6/processor
+
+if [ "${BOOT_PROCESSOR}" != "${THIS_PROCESSOR}" ]; then
+	echo "Last u-boot compilation was for ${BOOT_PROCESSOR}, different from ${THIS_PROCESSOR}"
+	echo -n "Compilation needed. Do you want to proceed ? [Y/n] "
+	read CONFIRM
+	if [ "${CONFIRM}" == "Y" ]; then
+		cd ../Bootloader/u-boot-2014.10-NOVAsom6
+		if [ "${THIS_PROCESSOR}" == "QUAD" ]; then
+			./umake_quad
+		else
+			./umake_dl
+		fi
+	fi
+	cd ${HERE}
+fi
+
+DTB_SELECTED=`basename ${KERNEL_DTB}`
+PARAM_SELECTED=`basename ${PARAMS}`
+echo ""
+echo "Processor model is ${PROCESSOR}"
+echo "Boot loader is for ${THIS_PROCESSOR}"
+echo "DTB is             ${DTB_SELECTED}"
+echo "Param file is is   ${PARAM_SELECTED}"
+echo "Resolution is      ${2}"
+echo -n "Is this correct ? [Y/n] "
+read CONFIRM
+if [ "${CONFIRM}" == "Y" ]; then
+	echo -n "Writing u-boot ... "
+else
+	echo "NOT writing uSD. Giving up"
+	exit 0
+fi
+	
+sudo dd if=/dev/zero of=${DISK} bs=8M count=1; sync
+sync
+sudo dd if=${UBOOT_BIN} of=${DISK} bs=512 seek=2; sync
+sync
+sudo fdisk ${DISK} << __EOF__
+n
+p
+1
+
++192M
+t
+b
+n
+p
+3
+
++16M
+t
+3
+83
+n
+p
+2
+
++2048M
+t
+2
+83
+w
+__EOF__
+
+echo "Flashed ${WHEREIS}"
+sudo mkfs.vfat -F 16 ${DISK}1 -n N6BootK10
+sudo mkfs.ext3 -t ext3 -L N6RootFSK10 ${DISK}2
+sudo mkfs.ext3 -t ext3 -L N6Ext3DataK10 ${DISK}3
+sudo [ -d tmp ] && rm -rf tmp
+mkdir tmp
+sudo mount -t vfat ${DISK}1 tmp
+echo -n "Writing kernel ... "
+sudo cp ${KERNEL_BIN} tmp/.
+sync
+echo "Done"
+echo -n "Writing dtb ... "
+sudo cp ${KERNEL_DTB} tmp/.
+sync
+echo "Done"
+echo -n "Writing file system ... "
+sudo cp ${FS_UIMAGE} tmp/.
+sync
+echo "Done"
+echo -n "Writing splash ... "
+sudo cp ${SPLASH} tmp/splash.bmp.gz
+sync
+echo "Done"
+echo -n "Writing boot parameters ... "
+sudo cp ${PARAMS} tmp/NOVAsom6.params
+sync
+echo "Done"
+sudo umount tmp
+sync
+
+echo -n "Writing file system parameters ... "
+sudo mount -t ext2 ${DISK}3 tmp
+sudo cp -r /Devel/NOVAsom6_SDK/FileSystem-11_3.10/NovaAddOns/Init/etc/default_init/sysconfig tmp/.
+sudo cp -r /Devel/NOVAsom6_SDK/FileSystem-11_3.10/NovaAddOns/Wireless/etc/default_init/sysconfig tmp/.
+sudo chmod 755 tmp/sysconfig/*
+sudo umount tmp
+echo "Done"
+
+echo "Flash succesfully written"
+exit

@@ -1,0 +1,9 @@
+#!/bin/sh
+if [ "$1"  = "" ]; then
+	echo "Specify an image"
+exit 0;
+fi
+OUTPATH="/Devel/NOVAsom6_SDK/Kernel/linux-3.10.17_1.0.2_ga-NOVAsom6/drivers/video/logo"
+[ ! -f /usr/bin/pngtopnm ] && echo "pngtopnm not found"
+[ ! -f /usr/bin/pngtopnm ] && exit 0
+pngtopnm ${1} | pnmquant 223| pnmtoplainpnm > ${OUTPATH}/logo_linux_clut224.ppm

@@ -1,0 +1,64 @@
+#!/bin/sh
+# $1 = destination file name
+# $2 = stored config file, if empty get the Base config
+FSNAME=${1}
+BROOT_VERSION="2014.11"
+BROOT_FILENAME="buildroot-${BROOT_VERSION}"
+RESULTING_BROOT="buildroot-${BROOT_VERSION}"
+PATCH_DIR="NovaPatch-${BROOT_VERSION}"
+PATCH_VERSION="0.1"
+BUILDROOT_PATCH_FILE="${BROOT_FILENAME}_${PATCH_VERSION}.patch"
+BUILDROOT_CFG_BASE="Buildroot_Base.config"
+BUSYBOX_CFG_BASE="BusyBox_Base.config"
+
+if [ "${2}" == "" ]; then
+	BUILDROOT_CFG_BASE="Buildroot_Base.config"
+else
+	BUILDROOT_CFG_BASE=${2}
+fi
+if [ "${3}" == "" ]; then
+	BUSYBOX_CFG_BASE="BusyBox_Base.config"
+else
+	BUSYBOX_CFG_BASE=${3}
+fi
+
+
+echo "File System config source is ${BUILDROOT_CFG_BASE}"
+echo "Busybox config source is     ${BUSYBOX_CFG_BASE}"
+
+subst_config()
+{
+        SED_STRING="s/${1}=\([a-z]*\).*/${1}=\"${2}\"/g"
+        cat .config | sed $SED_STRING > aa.config
+        cp aa.config .config
+}
+
+if [ "${FSNAME}" == "" ]; then
+	echo "Empty dest file system name, givin up"
+	exit -1
+fi
+if [ -d ${FSNAME} ]; then
+	echo "${FSNAME} already exists, givin up"
+	exit -1
+fi
+
+if [ -d ${RESULTING_BROOT} ]; then
+	echo -n "Cleaning up old ${RESULTING_BROOT} ..."
+	rm -rf ${RESULTING_BROOT}
+	echo " Done"
+fi
+echo -n "Working on ${BROOT_FILENAME} ..."
+tar jxf ${BROOT_FILENAME}.tar.bz2
+cd ${RESULTING_BROOT}
+patch -p1 --quiet < ../${PATCH_DIR}/${BUILDROOT_PATCH_FILE}
+cd ..
+mv ${RESULTING_BROOT} ${FSNAME}
+cd ${FSNAME}
+cp ../Configurations/${BUILDROOT_CFG_BASE} .config
+cp ../Configurations/${BUSYBOX_CFG_BASE} BusyBox.config
+subst_config "BR2_TARGET_GENERIC_HOSTNAME" ${FSNAME}
+subst_config "BR2_TARGET_GENERIC_ISSUE" "Welcome"
+subst_config "BR2_PACKAGE_BUSYBOX_CONFIG" "\.\/BusyBox\.config"
+echo " Done"
+
+

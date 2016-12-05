@@ -1,0 +1,4 @@
+#!/bin/sh 
+cd /Devel/NOVAsom6_SDK/Kernel/linux-3.10.17_1.0.2_ga-NOVAsom6
+./kmake > /Devel/NOVAsom6_SDK/Logs/mkkernel.log
+

@@ -1,0 +1,76 @@
+#!/bin/sh
+DISK="/dev/sdb"
+UBOOT_BIN="../Deploy/u-boot.imx"
+KERNEL_BIN="../Deploy/NOVAsom6Kernel"
+FS_UIMAGE="../Deploy/NOVAsom6Initrd"
+KERNEL_DTB="../Deploy/imx6q-novasom.dtb"
+PARAMS="../Deploy/NOVAsom6.params"
+
+cd /Devel/NOVAsom6_SDK/Utils
+
+sudo dd if=/dev/zero of=${DISK} bs=8M count=1; sync
+sync
+sudo dd if=${UBOOT_BIN} of=${DISK} bs=512 seek=2; sync
+sync
+sudo fdisk ${DISK} << __EOF__
+n
+p
+1
+
++192M
+t
+b
+n
+p
+3
+
++16M
+t
+3
+83
+n
+p
+2
+
++2048M
+t
+2
+83
+w
+__EOF__
+
+echo "Flashed ${UBOOT_BIN}"
+sudo mkfs.vfat -F 16 ${DISK}1 -n N6BootK10
+sudo mkfs.ext3 -t ext3 -L N6RootFSK10 ${DISK}2
+sudo mkfs.ext3 -t ext3 -L N6Ext3DataK10 ${DISK}3
+sudo [ -d tmp ] && sudo rm -rf tmp
+sudo mkdir tmp
+sudo mount -t vfat ${DISK}1 tmp
+echo -n "Writing kernel ... "
+sudo cp ${KERNEL_BIN} tmp/.
+sync
+echo "Done"
+echo -n "Writing dtb ... "
+sudo cp ${KERNEL_DTB} tmp/imx6q-novasom.dtb
+sync
+echo "Done"
+echo -n "Writing file system ... "
+sudo cp ${FS_UIMAGE} tmp/.
+sync
+echo "Done"
+echo -n "Writing boot parameters ... "
+sudo cp ${PARAMS} tmp/NOVAsom6.params
+sync
+echo "Done"
+sudo umount tmp
+sync
+
+echo -n "Flashing GDS application ... "
+sudo mount -t ext3 ${DISK}3 tmp
+sudo mkdir tmp/application_storage
+sudo cp /Devel/NOVAsom6_SDK/GdsPages/GdsPages/www.tar tmp/application_storage/.
+sudo cp /Devel/NOVAsom6_SDK/GdsPages/GdsPages/www/AutoRun.sh tmp/application_storage/.
+sudo chmod 777  tmp/application_storage/AutoRun.sh
+sudo umount tmp
+echo "Done"
+
