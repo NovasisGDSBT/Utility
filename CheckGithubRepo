@@ -1,0 +1,54 @@
+#!/bin/sh
+DIRS="Bootloader/u-boot-2014.10-NOVAsom6 Kernel/linux-3.10.17_1.0.2_ga-NOVAsom6 GdsPages/GdsPages FileSystem/AfterCompileCommands Utils"
+REPOCOUNT=`echo "$DIRS" | awk '{print NF}'`
+
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+COUNTMODS=0
+COUNTRECV=0
+INCREMENT=1
+
+gitloop()
+{
+gitbin="git -C $1"
+
+# Fetches from all the remotes, although --all can be replaced with origin
+$gitbin fetch origin
+if [ $($gitbin rev-parse HEAD)>/dev/null 2>&1 != $($gitbin rev-parse @{u})>/dev/null 2>&1 ]; then
+	cd $1
+	COUNTMODS=`expr $COUNTMODS + $INCREMENT`;
+	#$gitbin rebase @{u} --preserve-merges
+	echo "  ${RED}Updates in ${1}${NC}"
+	echo -n "  Do you want to update ? [Y/n] "
+	read VAR
+	if [ "${VAR}" = "Y" ]; then
+		git pull origin master
+		COUNTRECV=`expr $COUNTRECV + $INCREMENT`;
+		echo $1
+		echo "${GREEN}SYNC OK${NC} : ${1}"
+	else
+		echo "${RED}Update skipped${NC}"
+	fi
+else
+	echo "${GREEN}SYNC OK${NC} : ${1}"
+fi
+}
+
+echo ""
+echo "***************************************"
+echo "**  Check for remote modified files  **"
+echo "***************************************"
+echo ""
+
+for i in ${DIRS}; do
+	gitloop /Devel/NOVAsom_SDK/$i
+done
+echo ""
+echo "Finished. Found ${RED}${COUNTMODS}${NC} modification(s) , ${RED}${COUNTRECV}${NC} file(s) received from remote to ${GREEN}${REPOCOUNT}${NC} local repos"
+echo ""
+
+exit ${COUNTRECV}
+
+
